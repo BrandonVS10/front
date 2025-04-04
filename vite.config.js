@@ -7,6 +7,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: process.env.PORT || 3000, // Usa el puerto asignado por Render
-    allowedHosts: ['front-mmlg.onrender.com'],
+    allowedHosts: ['front-bfid.onrender.com'],
   },
 });
