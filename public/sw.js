@@ -8,7 +8,7 @@ const APP_SHELL_FILES = [
   '/screenshots/cap.png', '/screenshots/cap1.png'
 ];
 
-// Instalación del Service Worker y caché
+// Instalación y precache
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(APP_SHELL_CACHE).then(cache => cache.addAll(APP_SHELL_FILES))
@@ -16,140 +16,7 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// Guardar en IndexedDB en caso de fallo de red
-function InsertIndexedDB(data) {
-  const dbRequest = indexedDB.open("database", 2);
-
-  dbRequest.onupgradeneeded = event => {
-    let db = event.target.result;
-    if (!db.objectStoreNames.contains("Usuarios")) {
-      db.createObjectStore("Usuarios", { keyPath: "id", autoIncrement: true });
-    }
-  };
-
-  dbRequest.onsuccess = event => {
-    let db = event.target.result;
-    let transaction = db.transaction("Usuarios", "readwrite");
-    let store = transaction.objectStore("Usuarios");
-
-    let request = store.add(data);
-    request.onsuccess = () => {
-      console.log("✅ Datos guardados en IndexedDB");
-      if (self.registration && self.registration.sync) {
-        self.registration.sync.register("syncUsuarios").catch(err => {
-          console.error("❌ Error al registrar la sincronización:", err);
-        });
-      } else {
-        console.warn("⚠️ SyncManager no soportado en este navegador");
-      }
-    };
-
-    request.onerror = event => console.error("❌ Error al guardar en IndexedDB:", event.target.error);
-  };
-
-  dbRequest.onerror = event => console.error("❌ Error al abrir IndexedDB:", event.target.error);
-}
-
-// Interceptar solicitudes
-self.addEventListener('fetch', event => {
-  if (!event.request.url.startsWith("http")) return; 
-
-  if (event.request.method === "POST") {
-    event.respondWith(
-      event.request.clone().json()
-        .then(body => 
-          fetch(event.request)
-            .catch(() => {
-              InsertIndexedDB(body);
-              return new Response(JSON.stringify({ message: "Datos guardados offline" }), {
-                headers: { "Content-Type": "application/json" }
-              });
-            })
-        )
-        .catch(error => console.error("❌ Error en fetch POST:", error))
-    );
-  } else {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          let clone = response.clone();
-          caches.open(DYNAMIC_CACHE).then(cache => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
-  }
-});
-
-// Sincronización en segundo plano
-self.addEventListener('sync', event => {
-  if (event.tag === "syncUsuarios") {
-    event.waitUntil(
-      new Promise((resolve, reject) => {
-        let dbRequest = indexedDB.open("database", 2);
-
-        dbRequest.onsuccess = event => {
-          let db = event.target.result;
-
-          if (!db.objectStoreNames.contains("Usuarios")) {
-            console.warn("⚠️ No hay datos en IndexedDB.");
-            resolve();
-            return;
-          }
-
-          let transaction = db.transaction("Usuarios", "readonly");
-          let store = transaction.objectStore("Usuarios");
-          let getAllRequest = store.getAll();
-
-          getAllRequest.onsuccess = () => {
-            let usuarios = getAllRequest.result;
-            if (usuarios.length === 0) {
-              console.log("✅ No hay usuarios para sincronizar.");
-              resolve();
-              return;
-            }
-
-            let postPromises = usuarios.map(user =>
-              fetch('https://backend-5it1.onrender.com/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(user)
-              })
-            );
-
-            Promise.all(postPromises)
-              .then(responses => {
-                let success = responses.every(response => response.ok);
-                if (success) {
-                  let deleteTransaction = db.transaction("Usuarios", "readwrite");
-                  let deleteStore = deleteTransaction.objectStore("Usuarios");
-                  deleteStore.clear().onsuccess = () => console.log("✅ Usuarios sincronizados y eliminados.");
-                } else {
-                  console.error("❌ Algunas respuestas fallaron:", responses);
-                }
-              })
-              .catch(error => {
-                console.error("❌ Error al sincronizar con la API:", error);
-                reject(error);
-              });
-          };
-
-          getAllRequest.onerror = () => {
-            console.error("❌ Error al obtener datos de IndexedDB:", getAllRequest.error);
-            reject(getAllRequest.error);
-          };
-        };
-
-        dbRequest.onerror = event => {
-          console.error("❌ Error al abrir IndexedDB:", event.target.error);
-          reject(event.target.error);
-        };
-      })
-    );
-  }
-});
-
-// Activación del SW y limpieza de caché antigua
+// Activación y limpieza de caché vieja
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -165,9 +32,147 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Manejo de notificaciones push
-self.addEventListener("push", (event) => {
-  let options = {
+// Guardar datos en IndexedDB
+function InsertIndexedDB(data) {
+  const dbRequest = indexedDB.open("database", 2);
+
+  dbRequest.onupgradeneeded = event => {
+    const db = event.target.result;
+    if (!db.objectStoreNames.contains("Usuarios")) {
+      db.createObjectStore("Usuarios", { keyPath: "id", autoIncrement: true });
+    }
+  };
+
+  dbRequest.onsuccess = event => {
+    const db = event.target.result;
+    const transaction = db.transaction("Usuarios", "readwrite");
+    const store = transaction.objectStore("Usuarios");
+
+    const request = store.add(data);
+
+    request.onsuccess = () => {
+      console.log("✅ Datos guardados en IndexedDB");
+      if ('sync' in self.registration) {
+        self.registration.sync.register("syncUsuarios").catch(err => {
+          console.error("❌ Error registrando sincronización:", err);
+        });
+      } else {
+        console.warn("⚠️ SyncManager no soportado");
+      }
+    };
+
+    request.onerror = event => {
+      console.error("❌ Error al guardar en IndexedDB:", event.target.error);
+    };
+  };
+
+  dbRequest.onerror = event => {
+    console.error("❌ Error al abrir IndexedDB:", event.target.error);
+  };
+}
+
+// Interceptar fetch
+self.addEventListener('fetch', event => {
+  if (!event.request.url.startsWith("http")) return;
+
+  if (event.request.method === "POST") {
+    event.respondWith(
+      event.request.clone().json()
+        .then(body =>
+          fetch(event.request)
+            .catch(() => {
+              InsertIndexedDB(body);
+              return new Response(JSON.stringify({ message: "Datos guardados offline" }), {
+                headers: { "Content-Type": "application/json" }
+              });
+            })
+        )
+        .catch(error => console.error("❌ Error procesando el cuerpo del POST:", error))
+    );
+  } else {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const resClone = response.clone();
+          caches.open(DYNAMIC_CACHE).then(cache => cache.put(event.request, resClone));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then(res => res || caches.match('/offline.html')))
+    );
+  }
+});
+
+// Sincronización en segundo plano
+self.addEventListener('sync', event => {
+  if (event.tag === "syncUsuarios") {
+    event.waitUntil(
+      new Promise((resolve, reject) => {
+        const dbRequest = indexedDB.open("database", 2);
+
+        dbRequest.onsuccess = event => {
+          const db = event.target.result;
+
+          if (!db.objectStoreNames.contains("Usuarios")) {
+            console.warn("⚠️ No hay store de Usuarios.");
+            resolve();
+            return;
+          }
+
+          const transaction = db.transaction("Usuarios", "readonly");
+          const store = transaction.objectStore("Usuarios");
+          const getAll = store.getAll();
+
+          getAll.onsuccess = () => {
+            const usuarios = getAll.result;
+            if (usuarios.length === 0) {
+              console.log("✅ No hay usuarios pendientes.");
+              resolve();
+              return;
+            }
+
+            const postAll = usuarios.map(user =>
+              fetch('https://backend-5it1.onrender.com/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+              })
+            );
+
+            Promise.all(postAll)
+              .then(responses => {
+                if (responses.every(res => res.ok)) {
+                  const delTransaction = db.transaction("Usuarios", "readwrite");
+                  delTransaction.objectStore("Usuarios").clear();
+                  console.log("✅ Usuarios sincronizados y limpiados.");
+                } else {
+                  console.error("❌ Algunos registros no se sincronizaron bien.");
+                }
+                resolve();
+              })
+              .catch(error => {
+                console.error("❌ Error en sincronización:", error);
+                reject(error);
+              });
+          };
+
+          getAll.onerror = () => {
+            console.error("❌ Error obteniendo usuarios:", getAll.error);
+            reject(getAll.error);
+          };
+        };
+
+        dbRequest.onerror = event => {
+          console.error("❌ Error abriendo IndexedDB:", event.target.error);
+          reject(event.target.error);
+        };
+      })
+    );
+  }
+});
+
+// Notificaciones Push
+self.addEventListener("push", event => {
+  const options = {
     body: event.data.text(),
     image: "./icons/fut1.png",
   };

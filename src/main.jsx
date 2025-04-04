@@ -4,15 +4,20 @@ import './index.css';
 import App from './App.jsx';
 import { BrowserRouter } from 'react-router-dom';
 
+// Registrar el Service Worker (asegúrate de que sw.js esté en /public si usas Vite)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { type: 'module' })
+      .then((registro) => {
+        console.log("✅ Service Worker registrado correctamente:", registro);
+      })
+      .catch(error => {
+        console.error("❌ Error al registrar el Service Worker:", error);
+      });
+  });
+}
+
 // Inicializar IndexedDB
-
-/*navigator.serviceWorker.register('./sw.js', { type: 'module' })
-.then((registro) => {
-  console.log("Service Worker registrado correctamente:", registro);
-})
-.catch(error => console.error("Error al registrar el Service Worker:", error));
-*/
-
 let db = window.indexedDB.open('database');
 
 db.onupgradeneeded = event => {
