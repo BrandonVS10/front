@@ -2,27 +2,11 @@ const APP_SHELL_CACHE = 'AppShellv6';
 const DYNAMIC_CACHE = 'DinamicoV6';
 
 const APP_SHELL_FILES = [
-  '/', 
-  '/index.html', 
-  '/offline.html',
-  '/index.css',
-  '/App.css',
-  '/App.jsx',
-  '/main.jsx',
-  '/components/Home.jsx',
-  '/components/Login.jsx',
-  '/components/Register.jsx',
-  '/icons/sao_1.png',
-  '/icons/sao_2.png',
-  '/icons/sao_3.png',
-  '/icons/carga.png',
-  '/screenshots/cap.png',
-  '/screenshots/cap1.png'
+  '/', '/index.html', '/offline.html', '/index.css', '/App.css', '/App.jsx',
+  '/main.jsx', '/components/Home.jsx', '/components/Login.jsx', '/components/Register.jsx',
+  '/icons/sao_1.png', '/icons/sao_2.png', '/icons/sao_3.png', '/icons/carga.png',
+  '/screenshots/cap.png', '/screenshots/cap1.png'
 ];
-
-self.addEventListener('install', event => {
-  self.skipWaiting();  // Forzar la instalación del nuevo SW
-});
 
 // Instalación del Service Worker y caché
 self.addEventListener('install', event => {
@@ -50,23 +34,25 @@ function InsertIndexedDB(data) {
 
     let request = store.add(data);
     request.onsuccess = () => {
-      console.log("Datos guardados en IndexedDB");
-      if (self.registration.sync) {
+      console.log("✅ Datos guardados en IndexedDB");
+      if (self.registration && self.registration.sync) {
         self.registration.sync.register("syncUsuarios").catch(err => {
-          console.error("Error al registrar la sincronización:", err);
+          console.error("❌ Error al registrar la sincronización:", err);
         });
+      } else {
+        console.warn("⚠️ SyncManager no soportado en este navegador");
       }
     };
 
-    request.onerror = event => console.error("Error al guardar en IndexedDB:", event.target.error);
+    request.onerror = event => console.error("❌ Error al guardar en IndexedDB:", event.target.error);
   };
 
-  dbRequest.onerror = event => console.error("Error al abrir IndexedDB:", event.target.error);
+  dbRequest.onerror = event => console.error("❌ Error al abrir IndexedDB:", event.target.error);
 }
 
 // Interceptar solicitudes
 self.addEventListener('fetch', event => {
-  if (!event.request.url.startsWith("http")) return; // Evita problemas con extensiones
+  if (!event.request.url.startsWith("http")) return; 
 
   if (event.request.method === "POST") {
     event.respondWith(
@@ -80,7 +66,7 @@ self.addEventListener('fetch', event => {
               });
             })
         )
-        .catch(error => console.error("Error en fetch POST:", error))
+        .catch(error => console.error("❌ Error en fetch POST:", error))
     );
   } else {
     event.respondWith(
@@ -106,7 +92,7 @@ self.addEventListener('sync', event => {
           let db = event.target.result;
 
           if (!db.objectStoreNames.contains("Usuarios")) {
-            console.error("No hay datos en IndexedDB.");
+            console.warn("⚠️ No hay datos en IndexedDB.");
             resolve();
             return;
           }
@@ -118,7 +104,7 @@ self.addEventListener('sync', event => {
           getAllRequest.onsuccess = () => {
             let usuarios = getAllRequest.result;
             if (usuarios.length === 0) {
-              console.log("No hay usuarios para sincronizar.");
+              console.log("✅ No hay usuarios para sincronizar.");
               resolve();
               return;
             }
@@ -137,25 +123,25 @@ self.addEventListener('sync', event => {
                 if (success) {
                   let deleteTransaction = db.transaction("Usuarios", "readwrite");
                   let deleteStore = deleteTransaction.objectStore("Usuarios");
-                  deleteStore.clear().onsuccess = () => console.log("Usuarios sincronizados y eliminados.");
+                  deleteStore.clear().onsuccess = () => console.log("✅ Usuarios sincronizados y eliminados.");
                 } else {
-                  console.error("Algunas respuestas fallaron:", responses);
+                  console.error("❌ Algunas respuestas fallaron:", responses);
                 }
               })
               .catch(error => {
-                console.error("Error al sincronizar con la API:", error);
+                console.error("❌ Error al sincronizar con la API:", error);
                 reject(error);
               });
           };
 
           getAllRequest.onerror = () => {
-            console.error("Error al obtener datos de IndexedDB:", getAllRequest.error);
+            console.error("❌ Error al obtener datos de IndexedDB:", getAllRequest.error);
             reject(getAllRequest.error);
           };
         };
 
         dbRequest.onerror = event => {
-          console.error("Error al abrir IndexedDB:", event.target.error);
+          console.error("❌ Error al abrir IndexedDB:", event.target.error);
           reject(event.target.error);
         };
       })
@@ -170,7 +156,7 @@ self.addEventListener('activate', event => {
       Promise.all(
         keys.map(key => {
           if (key !== APP_SHELL_CACHE && key !== DYNAMIC_CACHE) {
-            console.log("Eliminando caché antigua:", key);
+            console.log("🗑️ Eliminando caché antigua:", key);
             return caches.delete(key);
           }
         })
@@ -179,15 +165,11 @@ self.addEventListener('activate', event => {
   );
 });
 
-
+// Manejo de notificaciones push
 self.addEventListener("push", (event) => {
-
-  let options={
-      body:event.data.text(),
-       
-      image: "./icons/fut1.png",
-  }
-  
-  self.registration.showNotification("Titulo",options); 
-   
+  let options = {
+    body: event.data.text(),
+    image: "./icons/fut1.png",
+  };
+  self.registration.showNotification("Notificación", options);
 });
