@@ -8,7 +8,7 @@ const APP_SHELL_FILES = [
   '/screenshots/cap.png', '/screenshots/cap1.png'
 ];
 
-// Instalación y precache
+// 🔧 Instalación y precache
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(APP_SHELL_CACHE).then(cache => cache.addAll(APP_SHELL_FILES))
@@ -16,7 +16,7 @@ self.addEventListener('install', event => {
   self.skipWaiting();
 });
 
-// Activación y limpieza de caché vieja
+// 🔄 Activación y limpieza de cachés viejas
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -32,7 +32,7 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Guardar datos en IndexedDB
+// 💾 Guardar datos en IndexedDB
 function InsertIndexedDB(data) {
   const dbRequest = indexedDB.open("database", 2);
 
@@ -71,7 +71,7 @@ function InsertIndexedDB(data) {
   };
 }
 
-// Interceptar fetch
+// 🌐 Interceptar fetch
 self.addEventListener('fetch', event => {
   if (!event.request.url.startsWith("http")) return;
 
@@ -87,7 +87,7 @@ self.addEventListener('fetch', event => {
               });
             })
         )
-        .catch(error => console.error("❌ Error procesando el cuerpo del POST:", error))
+        .catch(error => console.error("❌ Error procesando cuerpo del POST:", error))
     );
   } else {
     event.respondWith(
@@ -102,7 +102,7 @@ self.addEventListener('fetch', event => {
   }
 });
 
-// Sincronización en segundo plano
+// 🔄 Sincronización en segundo plano
 self.addEventListener('sync', event => {
   if (event.tag === "syncUsuarios") {
     event.waitUntil(
@@ -133,7 +133,10 @@ self.addEventListener('sync', event => {
             const postAll = usuarios.map(user =>
               fetch('https://backend-5it1.onrender.com/auth/register', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-from-service-worker': 'true'
+                },
                 body: JSON.stringify(user)
               })
             );
@@ -145,7 +148,7 @@ self.addEventListener('sync', event => {
                   delTransaction.objectStore("Usuarios").clear();
                   console.log("✅ Usuarios sincronizados y limpiados.");
                 } else {
-                  console.error("❌ Algunos registros no se sincronizaron bien.");
+                  console.error("❌ Algunos registros no se sincronizaron correctamente.");
                 }
                 resolve();
               })
@@ -170,7 +173,7 @@ self.addEventListener('sync', event => {
   }
 });
 
-// Notificaciones Push
+// 🔔 Notificaciones Push
 self.addEventListener("push", event => {
   const options = {
     body: event.data.text(),
