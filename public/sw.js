@@ -1,6 +1,8 @@
+// Definir los nombres de las cachés
 const APP_SHELL_CACHE = 'AppShellv6';
 const DYNAMIC_CACHE = 'DinamicoV6';
 
+// Archivos esenciales para la PWA
 const APP_SHELL_FILES = [
   '/', '/index.html', '/offline.html', '/index.css', '/App.css', '/App.jsx',
   '/main.jsx', '/components/Home.jsx', '/components/Login.jsx', '/components/Register.jsx',
@@ -8,38 +10,41 @@ const APP_SHELL_FILES = [
   '/screenshots/cap.png', '/screenshots/cap1.png'
 ];
 
-// 🔧 Instalación y precache
+// 🔧 Instalación: caché de los archivos esenciales
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(APP_SHELL_CACHE).then(cache => cache.addAll(APP_SHELL_FILES))
+    caches.open(APP_SHELL_CACHE).then(cache => cache.addAll(APP_SHELL_FILES)) // Guardar archivos de la shell en caché
   );
-  self.skipWaiting();
+  self.skipWaiting(); // Permite que el nuevo SW se active inmediatamente
 });
 
-// 🔄 Activación y limpieza de cachés viejas
+// 🔄 Activación: limpiar cachés viejas
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
         keys.map(key => {
+          // Eliminar cachés antiguas que no sean las actuales
           if (key !== APP_SHELL_CACHE && key !== DYNAMIC_CACHE) {
             console.log("🗑️ Eliminando caché antigua:", key);
             return caches.delete(key);
           }
         })
       )
-    ).then(() => self.clients.claim())
+    ).then(() => self.clients.claim()) // Asegura que el SW controle las páginas abiertas
   );
 });
 
-// 💾 Guardar datos en IndexedDB
+// 💾 Guardar datos en IndexedDB cuando la red no esté disponible
 function InsertIndexedDB(data) {
-  const dbRequest = indexedDB.open("database", 2);
+  const dbRequest = indexedDB.open("database", 2); // Abre o crea la base de datos con versión 2
 
   dbRequest.onupgradeneeded = event => {
     const db = event.target.result;
+    // Crear un object store llamado 'Usuarios' con autoIncremento para el 'id'
     if (!db.objectStoreNames.contains("Usuarios")) {
       db.createObjectStore("Usuarios", { keyPath: "id", autoIncrement: true });
+      console.log("✅ 'Usuarios' store creado.");
     }
   };
 
@@ -48,10 +53,11 @@ function InsertIndexedDB(data) {
     const transaction = db.transaction("Usuarios", "readwrite");
     const store = transaction.objectStore("Usuarios");
 
-    const request = store.add(data);
-
+    const request = store.add(data); // Guardar datos en la base de datos
     request.onsuccess = () => {
       console.log("✅ Datos guardados en IndexedDB");
+
+      // Si el navegador soporta Background Sync, registrar la sincronización
       if ('sync' in self.registration) {
         self.registration.sync.register("syncUsuarios").catch(err => {
           console.error("❌ Error registrando sincronización:", err);
@@ -71,16 +77,18 @@ function InsertIndexedDB(data) {
   };
 }
 
-// 🌐 Interceptar fetch
+// 🌐 Interceptar las solicitudes fetch (para manejar offline)
 self.addEventListener('fetch', event => {
-  if (!event.request.url.startsWith("http")) return;
+  if (!event.request.url.startsWith("http")) return; // Ignorar solicitudes que no sean HTTP
 
+  // Si es una solicitud POST (registro o similar)
   if (event.request.method === "POST") {
     event.respondWith(
       event.request.clone().json()
         .then(body =>
-          fetch(event.request)
+          fetch(event.request) // Intentar hacer la solicitud normalmente
             .catch(() => {
+              // Si no se puede hacer la solicitud, guardar en IndexedDB
               InsertIndexedDB(body);
               return new Response(JSON.stringify({ message: "Datos guardados offline" }), {
                 headers: { "Content-Type": "application/json" }
@@ -90,19 +98,24 @@ self.addEventListener('fetch', event => {
         .catch(error => console.error("❌ Error procesando cuerpo del POST:", error))
     );
   } else {
+    // Para otras solicitudes (GET, etc.), intentar hacer la solicitud
     event.respondWith(
       fetch(event.request)
         .then(response => {
           const resClone = response.clone();
+          // Guardar la respuesta en la caché dinámica
           caches.open(DYNAMIC_CACHE).then(cache => cache.put(event.request, resClone));
           return response;
         })
-        .catch(() => caches.match(event.request).then(res => res || caches.match('/offline.html')))
+        .catch(() => {
+          // Si falla la solicitud, intentar cargar desde la caché
+          return caches.match(event.request).then(res => res || caches.match('/offline.html'));
+        })
     );
   }
 });
 
-// 🔄 Sincronización en segundo plano
+// 🔄 Sincronización en segundo plano para registrar usuarios cuando hay conexión
 self.addEventListener('sync', event => {
   if (event.tag === "syncUsuarios") {
     event.waitUntil(
@@ -120,7 +133,7 @@ self.addEventListener('sync', event => {
 
           const transaction = db.transaction("Usuarios", "readonly");
           const store = transaction.objectStore("Usuarios");
-          const getAll = store.getAll();
+          const getAll = store.getAll(); // Obtener todos los usuarios pendientes
 
           getAll.onsuccess = () => {
             const usuarios = getAll.result;
@@ -144,6 +157,7 @@ self.addEventListener('sync', event => {
             Promise.all(postAll)
               .then(responses => {
                 if (responses.every(res => res.ok)) {
+                  // Si todos los usuarios se sincronizan correctamente, limpiar IndexedDB
                   const delTransaction = db.transaction("Usuarios", "readwrite");
                   delTransaction.objectStore("Usuarios").clear();
                   console.log("✅ Usuarios sincronizados y limpiados.");
@@ -173,11 +187,11 @@ self.addEventListener('sync', event => {
   }
 });
 
-// 🔔 Notificaciones Push
+// 🔔 Notificaciones Push: manejar eventos de notificaciones
 self.addEventListener("push", event => {
   const options = {
     body: event.data.text(),
-    image: "./icons/fut1.png",
+    image: "./icons/fut1.png", // Imagen para la notificación
   };
   self.registration.showNotification("Notificación", options);
 });

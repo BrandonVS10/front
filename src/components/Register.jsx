@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-
+// ... (importaciones)
 const Register = () => {
   const [nombre, setNombre] = useState('');
   const navigate = useNavigate();
@@ -23,9 +21,11 @@ const Register = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
 
+    const userData = { email, nombre, password };
+
     if (!isOnline) {
       setError('No estás conectado a Internet. Los datos se guardarán localmente.');
-      insertIndexedDB({ email, nombre, password });
+      insertIndexedDB(userData);
       return;
     }
 
@@ -35,7 +35,7 @@ const Register = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, nombre, password }),
+        body: JSON.stringify(userData),
       });
 
       const data = await response.json();
@@ -52,51 +52,45 @@ const Register = () => {
   };
 
   function insertIndexedDB(data) {
-    let dbRequest = window.indexedDB.open("database", 2);
+    const dbRequest = indexedDB.open("database", 2);
 
-    dbRequest.onupgradeneeded = (event) => {
+    dbRequest.onupgradeneeded = event => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("Usuarios")) {
-        db.createObjectStore("Usuarios", { keyPath: "email" });
-        console.log("✅ 'Usuarios' object store creado.");
+        db.createObjectStore("Usuarios", { keyPath: "id", autoIncrement: true });
+        console.log("✅ 'Usuarios' store creado.");
       }
     };
 
-    dbRequest.onsuccess = (event) => {
+    dbRequest.onsuccess = event => {
       const db = event.target.result;
+      const transaction = db.transaction("Usuarios", "readwrite");
+      const store = transaction.objectStore("Usuarios");
 
-      if (db.objectStoreNames.contains("Usuarios")) {
-        const transaction = db.transaction("Usuarios", "readwrite");
-        const objStore = transaction.objectStore("Usuarios");
+      const request = store.add(data);
+      request.onsuccess = () => {
+        console.log("✅ Datos guardados offline:", request.result);
 
-        const addRequest = objStore.add(data);
+        if ('serviceWorker' in navigator && 'SyncManager' in window) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.sync.register("syncUsuarios");
+          }).then(() => {
+            console.log("🔄 Background Sync registrado");
+          }).catch(err => {
+            console.error("❌ Error registrando sync:", err);
+          });
+        } else {
+          console.warn("⚠️ Este navegador no soporta Background Sync.");
+        }
+      };
 
-        addRequest.onsuccess = () => {
-          console.log("✅ Datos insertados en IndexedDB:", addRequest.result);
-
-          if ('serviceWorker' in navigator && 'SyncManager' in window) {
-            navigator.serviceWorker.ready.then((registration) => {
-              console.log("Intentando registrar la sincronización...");
-              registration.sync.register("syncUsuarios");
-              self.registration.sync.register("sync");
-            }).then(() => {
-              console.log("✅ Sincronización registrada con éxito");
-            }).catch((err) => {
-              console.error("❌ Error registrando la sincronización:", err);
-            });
-          } else {
-            console.warn("⚠️ Background Sync no es soportado en este navegador.");
-          }
-        };
-
-        addRequest.onerror = () => {
-          console.error("❌ Error insertando en IndexedDB");
-        };
-      }
+      request.onerror = () => {
+        console.error("❌ Error al guardar en IndexedDB");
+      };
     };
 
     dbRequest.onerror = () => {
-      console.error("❌ Error abriendo IndexedDB");
+      console.error("❌ Error al abrir IndexedDB");
     };
   }
 
@@ -147,52 +141,6 @@ const Register = () => {
   );
 };
 
-const styles = {
-  container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100vh',
-    backgroundColor: '#bc1bcb',
-  },
-  form: {
-    backgroundColor: 'black',
-    padding: '40px',
-    borderRadius: '10px',
-    boxShadow: '0 6px 12px rgba(0, 0, 0, 0.15)',
-    width: '320px',
-    textAlign: 'center',
-  },
-  heading: {
-    fontSize: '2rem',
-    color: '#ffffff',
-    marginBottom: '20px',
-    fontWeight: 'bold',
-  },
-  input: {
-    width: '90%',
-    padding: '8px',
-    marginBottom: '15px',
-    border: '1px solid #bbb',
-    borderRadius: '6px',
-    fontSize: '1.2rem',
-    outline: 'none',
-  },
-  button: {
-    width: '100%',
-    padding: '12px',
-    backgroundColor: '#c82284',
-    color: 'black',
-    border: 'none',
-    borderRadius: '6px',
-    fontSize: '1.2rem',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-  },
-  error: {
-    color: '#ff4444',
-    marginBottom: '10px',
-  },
-};
+// ... (styles y export)
 
 export default Register;
