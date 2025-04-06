@@ -1,11 +1,13 @@
-// ... (importaciones)
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 const Register = () => {
   const [nombre, setNombre] = useState('');
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const updateOnlineStatus = () => setIsOnline(navigator.onLine);
@@ -141,6 +143,59 @@ const Register = () => {
   );
 };
 
-// ... (styles y export)
+const styles = {
+  container: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    backgroundColor: '#f7f7f7',
+    fontFamily: 'Arial, sans-serif',
+    position: 'relative',
+  },
+  form: {
+    backgroundColor: '#fff',
+    padding: '30px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+    width: '100%',
+    maxWidth: '400px',
+  },
+  heading: {
+    textAlign: 'center',
+    marginBottom: '20px',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  input: {
+    width: '100%',
+    padding: '12px',
+    marginBottom: '15px',
+    borderRadius: '4px',
+    border: '1px solid #ccc',
+    fontSize: '16px',
+    color: '#333',
+  },
+  button: {
+    width: '100%',
+    padding: '12px',
+    backgroundColor: '#4CAF50',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s',
+  },
+  error: {
+    color: 'red',
+    fontSize: '14px',
+    marginBottom: '15px',
+    textAlign: 'center',
+  },
+};
 
 export default Register;
+
