@@ -10,18 +10,19 @@ const Register = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    window.addEventListener("online", () => setIsOnline(true));
-    window.addEventListener("offline", () => setIsOnline(false));
+    const updateOnlineStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
 
     return () => {
-      window.removeEventListener("online", () => setIsOnline(true));
-      window.removeEventListener("offline", () => setIsOnline(false));
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
     };
   }, []);
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    
+
     if (!isOnline) {
       setError('No estás conectado a Internet. Los datos se guardarán localmente.');
       insertIndexedDB({ email, nombre, password });
@@ -72,12 +73,12 @@ const Register = () => {
 
         addRequest.onsuccess = () => {
           console.log("✅ Datos insertados en IndexedDB:", addRequest.result);
-          
+
           if ('serviceWorker' in navigator && 'SyncManager' in window) {
             navigator.serviceWorker.ready.then((registration) => {
               console.log("Intentando registrar la sincronización...");
               registration.sync.register("syncUsuarios");
-              self.registration.sync.register("sync"); 
+              self.registration.sync.register("sync");
             }).then(() => {
               console.log("✅ Sincronización registrada con éxito");
             }).catch((err) => {
@@ -98,9 +99,24 @@ const Register = () => {
       console.error("❌ Error abriendo IndexedDB");
     };
   }
-  
+
   return (
     <div style={styles.container}>
+      <div style={{
+        position: 'absolute',
+        top: 20,
+        right: 20,
+        padding: '10px 20px',
+        borderRadius: '8px',
+        backgroundColor: isOnline ? '#4CAF50' : '#f44336',
+        color: 'white',
+        fontWeight: 'bold',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+        zIndex: 1000,
+      }}>
+        {isOnline ? '🟢 En línea' : '🔴 Sin conexión'}
+      </div>
+
       <form style={styles.form} onSubmit={handleRegister}>
         <h2 style={styles.heading}>Registro</h2>
         {error && <div style={styles.error}>{error}</div>}
